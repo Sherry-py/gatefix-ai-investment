@@ -2,14 +2,14 @@
 target is an investment DECISION (not an agent action): whether the evidence
 for investing in an AI project is sufficient to authorize committing capital.
 
-This is also the first case backed by an AI-project sample (Qiongche / Noematrix)
+This is also the first case backed by a de-identified AI-project sample
 whose evidence values come from public reporting + the company BP (both "to be
 verified"), NOT a real internal due-diligence record — the honest-disclosure
 stance is explicit about this. There is NO real investment decision behind
 this case yet (n=0); the scoring field split and thresholds are a first pass,
 to be tightened after real cases.
 
-The intent of the committed evidence is to keep Qiongche's real state — most
+The intent of the committed evidence is to keep the sample's representative state — most
 governance evidence unconfirmed, landing evidence with unclear contract
 口径 (contract/framework/intent not separated) — so the gate routes BOTH the
 investment decision and the valuation to ESCALATE (human review), never PASS.
@@ -45,7 +45,7 @@ def test_ai_investment_case_reproduces_expected_routes():
 
 
 def test_ai_investment_governance_escalates_below_repair_band():
-    """Qiongche's governance evidence is 0/6 confirmed — Q lands at 0.225,
+    """The sample's governance evidence is 0/6 confirmed — Q lands at 0.225,
     well below tau_repair — so it escalates straight to the investment
     committee without an automated repair attempt, even though the gap is
     marked externally-verifiable. This mirrors the "黄灯 → 人工终审" conclusion
@@ -64,9 +64,9 @@ def test_ai_investment_governance_escalates_below_repair_band():
 
 
 def test_ai_investment_landing_reports_verified_level():
-    """Qiongche's landing evidence: deployment + industry embedding are present
+    """The sample's landing evidence: deployment + industry embedding are present
     (2/5), but paid contracts / economic value / repeat orders are unverified —
-    the verified landing level reports L1, with the L2 claim (2000 signed units)
+    the verified landing level reports L1, with the L2 claim (N signed units)
     blocked on contract verification. The red line (deployment + verified paid
     contract) is not passed."""
     engine.run_case("ai_investment")
