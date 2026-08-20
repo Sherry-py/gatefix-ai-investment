@@ -1,6 +1,6 @@
 # GateFix · AI 投资治理方法（Xirui Lian Sherry 开发）
 
-> **品牌归属：** 本方法由Xirui Lian Sherry 独立开发，知识产权归其所有；中美绿色基金采用本方法进行 AI 投资判断。本开源仓库为公开的"判定骨架"，评分阈值、估值锚算法与真实案例不在此仓库中。
+> **品牌归属：** 本方法由 Xirui Lian Sherry 独立开发，知识产权归其所有；中美绿色基金采用本方法进行 AI 投资判断。本开源仓库为公开的"判定骨架"，评分阈值、估值锚算法与真实案例不在此仓库中。
 
 [![CI](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml/badge.svg)](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml)
 
