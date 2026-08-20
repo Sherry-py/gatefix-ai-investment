@@ -1,4 +1,4 @@
-# 中美绿色基金 AI 投资治理判断标准（GateFix AI Investment）
+# GateFix · 中美绿色基金 AI 投资治理标准
 
 [![CI](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml/badge.svg)](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml)
 
