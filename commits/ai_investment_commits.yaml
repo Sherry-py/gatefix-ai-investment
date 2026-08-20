@@ -1,0 +1,44 @@
+# commits/ai_investment_commits.yaml —— "中美绿色基金 AI 投资治理判断标准"（case=ai_investment）的决策闸门定义
+#
+# 这是把判定对象从"某个 agent 动作能不能放行"换到"对某个 AI 项目的投资决策，
+# 证据够不够格放行"的第 4 个 case。判定引擎（gate.py/engine.py）一行不改，
+# 只新增这一份领域配置——沿用 README「换场景怎么复用」那套四文件约定。
+#
+# 判断标准分两层（对应本项目两个不可逆决策点）：
+#   1. invest_decision（投资决策）= 治理证据闸门（管得住）：
+#      数据合规 / 备案资质 / 安全 / 可控 / 隐私 / 跨境合规 6 项治理证据够不够格。
+#   2. valuation（估值锁定）= 落地证据闸门（用得上）：
+#      生产部署 / 付费合同 / 复购 / 产业嵌入 / 可量化经济价值 5 项落地证据够不够格，
+#      落地等级 L0(叙事)→L3(规模复购) 由这 5 项覆盖度体现。
+#   3. team_capability（团队驾驭能力）= 人情类判断，机器不可组装，直接旁路给投委会。
+#
+# 如实说明：这是第一个把投资决策编码成确定性判定规则的 case，尚未经过真实投资
+# 决策验证（n=0）；evidence 里的穹彻样本来自公开信息 + BP（待核验），不是真实
+# 内部尽调材料。判定规则的阈值、字段划分是首版，待真实案例跑过后收紧。
+
+commits:
+
+  - id: invest_decision
+    name_cn: "AI 项目投资决策（治理证据闸门）"
+    irreversibility: "资本一旦投入难以撤回，涉及金额、涉及第三方（项目公司/国资）"
+    cost_reverse: inf
+    value_tier: high
+    cost_fix: 0
+    precondition_fn: score_invest_governance
+
+  - id: valuation
+    name_cn: "估值锁定（落地证据闸门）"
+    irreversibility: "条款一旦签署估值锁定，后续调整空间有限"
+    cost_reverse: inf
+    value_tier: high
+    cost_fix: 0
+    precondition_fn: score_landing_level
+
+  - id: team_capability
+    name_cn: "团队驾驭能力判断"
+    irreversibility: "对'团队能不能把技术落地'的判断一旦拍板即进入投资安排"
+    cost_reverse: inf
+    value_tier: high
+    cost_fix: 0
+    bypass_to_human: true
+    bypass_reason: "团队驾驭能力（能不能落地、执行力、判断力）是关系深浅/执行力这类人情类判断，不在 API 里，最终必须投委会人工拍板，机器不替这一步做主"

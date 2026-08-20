@@ -1,0 +1,8 @@
+# 核心引擎：唯一依赖
+pyyaml
+
+# MCP server：只有跑 mcp_server/server.py 才需要（钉死版本，mcp 2.0.0 重组了包结构）
+mcp==1.23.1
+
+# 测试
+pytest
