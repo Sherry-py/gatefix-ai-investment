@@ -1,0 +1,35 @@
+# evidence/ai_investment_evidence.yaml —— "中美绿色基金 AI 投资治理判断标准"的证据快照
+#
+# 第一个样本：穹彻智能（Noematrix）。证据取值来自公开信息与公司 BP（均"待核验"），
+# 不是真实内部尽调材料——文件头据此如实标注。
+#
+# 设计意图：这份证据刻意保留"治理证据大量待确认 + 落地证据口径不清"的真实状态，
+# 用来验证 gate 会不会正确把投资决策路由到 ESCALATE（人工终审），而不是默认 PASS。
+# 治理缺口（备案/数据合规）标注 governance_gap_externally_verifiable=true，
+# 意味着会先走一轮 AUTO_REPAIR 尝试补证；补证后其余缺口（安全/可控/隐私/跨境）
+# 仍无法自动闭合，最终收敛到 ESCALATE——对应"穹彻 = 黄灯"的结论。
+
+invest_decision:
+  filing_license_verified: false            # 备案号未提供（研究笔记：待确认）
+  data_compliance_verified: false           # RoboPocket 无本体采集，数据来源合规待确认
+  safety_certified: false                   # 机器人安全认证待确认
+  controllability_data_present: false       # 远程介入率/故障率等可控性数据未提供
+  privacy_compliance_verified: false        # 数据采集隐私合规待确认
+  cross_border_compliance_verified: false   # 沙特阿美/Sea 股东，跨境合规待确认
+  compliance_before_operations: false       # 未确认"先合规后运营"顺序
+  evidence_source_verified: false           # 自报（BP），第三方未复现
+  governance_gap_externally_verifiable: true  # 备案/数据授权可外部核查 → 走 AUTO_REPAIR
+
+valuation:
+  production_deployed: true                 # 沈阳药房 POC 通过、数采工具链落地清华/库帕思/优必选
+  paying_contracts_verified: false          # 签约 2000 套，但合同/框架/意向三口径未分清
+  industry_embedded: true                   # 药房场景，嵌入真实产业环节
+  economic_value_quantified: false          # 单店回本 1.5-2 年 ROI 模型，待复购验证
+  repeat_orders: false                      # 复购未验证
+  delivery_before_repeat_claim: false       # 交付 200 套 vs 签约 2000 套，口径未对齐
+  contract_evidence_verified_third_party: false  # 自报
+  landing_gap_externally_verifiable: true   # 合同可要求盖章原件核实 → 走 AUTO_REPAIR
+
+team_capability:
+  # bypass_to_human，不进入 4D-CQ 计算，无证据字段
+  note: "团队驾驭能力（能不能落地）需投委会人工判断，机器不替这一步做主"

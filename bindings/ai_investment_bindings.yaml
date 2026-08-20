@@ -1,0 +1,23 @@
+# bindings/ai_investment_bindings.yaml —— 每个决策闸门绑定谁来执行、通过什么通道
+# 本 case 关键路径是投资团队发起、投委会终审的人工决策链，不是 API 编排器；
+# 这份文件记录的是"权在谁的账户域"，engine.py 不会真的去调用这些人类执行者。
+
+bindings:
+
+  invest_decision:
+    executor_type: human
+    executor: "投资团队（AI 投资合伙人）→ 投委会终审"
+    channel: "尽调材料 → 投委会上会"
+    incentive: "职务行为"
+
+  valuation:
+    executor_type: human
+    executor: "投资团队（AI 投资合伙人）→ 投委会终审"
+    channel: "条款谈判 → 投委会上会"
+    incentive: "职务行为"
+
+  team_capability:
+    executor_type: human
+    executor: "投委会（人工拍板）"
+    channel: "面谈/背调/访谈记录 → 投委会"
+    incentive: "职务行为"
