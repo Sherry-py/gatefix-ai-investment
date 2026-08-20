@@ -1,5 +1,5 @@
 """
-preconditions/ai_investment.py —— "中美绿色基金 AI 投资治理判断标准"（case=ai_investment）的
+preconditions/ai_investment.py —— "GateFix 方法（Xirui Lian Sherry 开发）· 中美绿色基金采用"（case=ai_investment）的
 precondition 判定函数（Pᵢ(E,θᵢ) 的具体实现）
 
 这是把判定对象从"某个 agent 动作能不能放行"换到"对某个 AI 项目的投资决策，证据

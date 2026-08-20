@@ -1,4 +1,6 @@
-# GateFix · 中美绿色基金 AI 投资治理标准
+# GateFix · AI 投资治理方法（Xirui Lian Sherry 开发）
+
+> **品牌归属：** 本方法由Xirui Lian Sherry 独立开发，知识产权归其所有；中美绿色基金采用本方法进行 AI 投资判断。本开源仓库为公开的"判定骨架"，评分阈值、估值锚算法与真实案例不在此仓库中。
 
 [![CI](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml/badge.svg)](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml)
 
@@ -73,6 +75,8 @@ $ python engine.py run --case=ai_investment
 - **AUTO_REPAIR** = 0.50 ≤ Q < 0.85 且缺口可外部核查，补一次证据再判（内部收敛，不作为终态暴露）；
 - **ESCALATE** = 证据缺口不可自动闭合，转人工终审；
 - **BYPASS_TO_HUMAN** = 人情类证据，或评估器故障（fail-closed），强制转人工。
+
+> **如实说明打分粒度**：当前这个 case 的打分是**离散**的——R/C/O/Ro 大多取二值（红线过 = 1.0 / 不过 = 0.2 这类），Q 只有少数离散取值，本质是一张"红线过没过 + 覆盖了几项"的规则表，不是连续质量谱。4D-CQ 是框架，支持未来把证据写成连续分；而投资决策里"有没有备案"这类证据本来就是二值，离散更贴业务。另外 `cost_reverse`/`value_tier` 在这个 case 不参与路由（投资天然不可逆，`is_commit` 恒真），它们只在汇总的成本量级里出现，第一次读代码不要误以为投资金额参与了判定。
 
 ## 怎么跑
 

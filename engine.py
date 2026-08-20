@@ -8,7 +8,7 @@ engine.py —— 运行时引擎：组装上下文 → Precondition 判定 → �
 按 --case 动态加载四份场景配置（commits/<case>_commits.yaml、
 bindings/<case>_bindings.yaml、evidence/<case>_evidence.yaml、
 preconditions/<case>.py），engine.py 和 gate.py 本身不含任何场景特定逻辑。
-当前场景为 ai_investment（中美绿色基金 AI 投资治理判断标准）。
+当前场景为 ai_investment（GateFix 方法（Xirui Lian Sherry 开发）· 中美绿色基金采用）。
 """
 
 import argparse
@@ -48,10 +48,10 @@ def _resolve_regular_commit(config, score_fn, repair_fn, evidence, verbose=False
     server 的 authorize() 才发现。
 
     返回 (route, result, Q, dry_rounds, repair_attempts, reason_code)，route
-    只会是 PASS / ESCALATE / BYPASS_TO_HUMAN（后者是任务 2 的 fail-closed
+    只会是 PASS / ESCALATE / BYPASS_TO_HUMAN（后者是 fail-closed
     兜底：score_fn/repair_fn 抛异常时的故障性失败，见 gate.py::safe_score/
     safe_repair）。reason_code 用 gate.py::classify_regular_reason_code
-    从收敛后的最终状态反推（任务 1：机器可判定的授权契约）。"""
+    从收敛后的最终状态反推。"""
     repair_fn_registered = repair_fn is not None
     dry_rounds = 0
     repair_attempts = 0
@@ -220,7 +220,7 @@ def run_case(case: str, verbose: bool = False, audit_log_path: Optional[Path] = 
             score_fn = REGISTRY[commit["precondition_fn"]]
             result, fault = safe_score(score_fn, evidence)
             if fault:
-                # fail-closed（任务 2）：软 commit 也不例外，evaluator 异常
+                # fail-closed：软 commit 也不例外，evaluator 异常
                 # 绝不能被 expectation_gate 悄悄当成"没有 promise"而放行。
                 print(f"  [软 commit / expectation gate] [FAIL-CLOSED] {result['notes']}")
                 rec = GateRecord(
@@ -300,7 +300,7 @@ def run_case(case: str, verbose: bool = False, audit_log_path: Optional[Path] = 
             entry["timestamp"] = datetime.now(timezone.utc).isoformat()
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    # ---------- 写审计日志（JSONL，append-only，任务 4） ----------
+    # ---------- 写审计日志（JSONL，append-only） ----------
     # 这是真正的历史留痕，和上面 gate_record.jsonl 的"最近一次快照"是两回事
     # （见 audit.py 模块 docstring）。诚实的失败语义：审计写入失败不会撤销
     # 已经生效的判定（rec 已经在 records 里了），只是分开报告——见下面汇总
@@ -347,7 +347,7 @@ def run_case(case: str, verbose: bool = False, audit_log_path: Optional[Path] = 
 
 
 def worst_case_exit_code(records) -> int:
-    """任务 1 的退出码约定（0=PASS, 1=ESCALATE, 2=BYPASS, 3=内部错误）应用到
+    """退出码约定（0=PASS, 1=ESCALATE, 2=BYPASS, 3=内部错误）应用到
     engine.py 的批量 CLI 形态：一次 run 处理多个 commit，没有单一 route 可
     映射，所以取"这批里最需要人工介入的那个结果"——BYPASS_TO_HUMAN 比
     ESCALATE 更需要人工，ESCALATE 比 PASS 更需要人工，谁的退出码数字大就
@@ -371,7 +371,7 @@ def main():
     if args.command == "run":
         try:
             records = run_case(args.case, verbose=args.verbose)
-        except Exception as exc:  # noqa: BLE001 — fail-closed 兜底，见任务 2
+        except Exception as exc:  # noqa: BLE001 — fail-closed 兜底
             print(f"internal error running case {args.case!r}: {exc}", file=sys.stderr)
             sys.exit(EXIT_CODE_INTERNAL_ERROR)
         sys.exit(worst_case_exit_code(records))

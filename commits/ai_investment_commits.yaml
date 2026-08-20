@@ -1,4 +1,4 @@
-# commits/ai_investment_commits.yaml —— "中美绿色基金 AI 投资治理判断标准"（case=ai_investment）的决策闸门定义
+# commits/ai_investment_commits.yaml —— "GateFix 方法（Xirui Lian Sherry 开发）· 中美绿色基金采用"（case=ai_investment）的决策闸门定义
 #
 # 这是把判定对象从"某个 agent 动作能不能放行"换到"对某个 AI 项目的投资决策，
 # 证据够不够格放行"的第 4 个 case。判定引擎（gate.py/engine.py）一行不改，

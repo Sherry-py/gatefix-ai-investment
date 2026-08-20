@@ -67,7 +67,7 @@ class GateResult:
         return self.route != "PASS"
 
     def to_contract(self) -> dict:
-        """任务 1：机器可判定的授权契约。下游只应该读 gate_state/
+        """机器可判定的授权契约。下游只应该读 gate_state/
         reason_code/auto_repair_available 做决策，reason 只是给人看。"""
         return build_gate_contract(
             gate_state=self.route, R=self.R, C=self.C, O=self.O, Ro=self.Ro,
@@ -126,7 +126,7 @@ class GatedAgentLoop:
     已在适配层收敛为非 PASS）；非 PASS 时 tool_fn 绝不被调用。没有开关能
     关掉这条——这是这个类存在的全部意义。
 
-    fail-closed 兜底（任务 2）：gate_fn 是调用方传进来的，可以是
+    fail-closed 兜底：gate_fn 是调用方传进来的，可以是
     make_case_gate_fn 那种内置实现，也可以是任何自定义函数——这里是所有
     动作执行前的唯一收口点，所以在这一层再加一道兜底：gate_fn 本身抛出的
     任何异常都收敛成阻断（BYPASS_TO_HUMAN），不会被异常冒泡绕过、变成
@@ -289,7 +289,7 @@ def resolve_precondition(
     soft_commit 分支：不看 R/C/O/Ro 阈值，改看 contains_promise /
     has_feasibility_evidence 这两个布尔量（expectation_gate）。
     常规分支：AUTO_REPAIR 只在这个函数内部出现，循环收敛后只会返回
-    PASS 或 ESCALATE——调用方永远只看到二态结果。任务 2（fail-closed）：
+    PASS 或 ESCALATE——调用方永远只看到二态结果。fail-closed：
     score_fn/repair_fn 抛异常时的第三种终态是 BYPASS_TO_HUMAN，不是
     PASS，也不是普通的 ESCALATE——见 gate.py::safe_score/safe_repair。"""
     if soft_commit:
@@ -443,7 +443,7 @@ def main():
     trace = loop.run(context=args.case, initial_state={})
     _print_trace(args.case, trace)
 
-    # 任务 1 退出码约定：这个 CLI 一次只跑一条 loop，天然对应单一最终
+    # 退出码约定：这个 CLI 一次只跑一条 loop，天然对应单一最终
     # route——被 gate 挡下就是挡它的那个 route，跑完没被挡就是 PASS。
     final_route = trace.steps[-1].route if trace.halted_by_gate else "PASS"
     sys.exit(EXIT_CODE.get(final_route, EXIT_CODE_INTERNAL_ERROR))
