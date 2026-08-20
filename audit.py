@@ -1,8 +1,8 @@
 """
-audit.py —— 门控判定的 append-only 审计记录（REVISION_BRIEF.md 任务 4）。
+audit.py —— 门控判定的 append-only 审计记录。
 
 只用标准库（json/pathlib/datetime），不引入新依赖——和 gate.py/engine.py
-的"核心零重依赖"是同一个原则（见任务 3）。存储选 JSONL 而不是 SQLite：
+的"核心零重依赖"是同一个原则。存储选 JSONL 而不是 SQLite：
 这个仓库已经在用 JSONL 记录 gate_record.jsonl，同一种格式，不多引入一种
 存储机制；轻量、可 grep、可被任何语言读。
 
@@ -11,7 +11,7 @@ gate_record.jsonl 是"最近一次 run 的快照"（tests/test_engine.py 依赖�
 每次 run 都恰好是本次这批 commit 的结果，所以那个文件继续保持覆盖写）；
 这里的审计日志才是真正的历史留痕，append-only，从不覆盖、从不原地改写。
 
-诚实的失败语义（抄 TFD）：append_gate_decision() 从不抛异常——审计写入
+诚实的失败语义：append_gate_decision() 从不抛异常——审计写入
 失败时返回 AuditWriteResult(ok=False, ...)，调用方要把"这个动作本身的
 判定结果"和"这次判定有没有被成功记下来"当成两件事分别报告，不能因为
 审计写失败就回滚已经生效的判定，也不能假装审计成功了。
@@ -38,9 +38,9 @@ def build_audit_record(*, action_id: str, gate_state: str, reason_code: str,
                         cq_scores: dict, schema_version: str,
                         thresholds: Optional[dict] = None,
                         case: str = "") -> dict:
-    """字段对应任务 4 的验收标准：时间戳、动作标识、输入的 cq_scores、
+    """审计记录字段：时间戳、动作标识、输入的 cq_scores、
     命中的阈值、输出的 gate_state、reason_code、schema_version。故意不收
-    human_readable/notes 这类自由文本字段（任务 5 的敏感物纪律）——最强的
+    human_readable/notes 这类自由文本字段（敏感物纪律）——最强的
     脱敏就是压根不存来路不明的自由文本，比"存了再脱敏"更彻底。需要人看的
     说明走 GateResult/GateRecord.to_contract() 的 human_readable，那条路径
     经过 gate.py::redact_secrets() 脱敏。"""

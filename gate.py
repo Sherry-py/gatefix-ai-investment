@@ -1,5 +1,5 @@
 """
-gate.py —— GateFix 的判定核心（对应"系统设计公式与可调参数表.md"里的核心公式 + 六条子公式）
+gate.py —— GateFix 的判定核心（4D-CQ 打分 + 四态路由）
 
 这个文件只做一件事：判定。不碰 evidence 怎么收集（engine.py 管），
 不碰某个 commit 具体怎么打分（preconditions/*.py 管）。
@@ -7,7 +7,7 @@ gate.py —— GateFix 的判定核心（对应"系统设计公式与可调参�
 核心不变式（对应 Commit(a,E) = Human_Gate(a) ∧ ⋀ᵢ Pᵢ(E,θᵢ)）：
     一个动作能不能放行 = 人是否已批准 ∧ 证据在 R/C/O/Ro 四个维度上是否都过阈值。
 
-授权强度分级（REVISION_BRIEF.md 任务 5，借鉴 MyClaw 的 session / step-up /
+授权强度分级（借鉴业界 session / step-up /
 confirmation phrase 三级授权思路，落到这个仓库自己的四态词汇表）——四态
 和"干预强度"是显式绑定的，不是四个平级的分类标签：
     PASS            = 自动放行（高频默认，agent 不停顿）
@@ -25,14 +25,14 @@ from dataclasses import dataclass, field
 from typing import Optional
 import re
 
-# ---------- 机器可判定的授权契约 (REVISION_BRIEF.md 任务 1) ----------
+# ---------- 机器可判定的授权契约 ----------
 #
 # schema_version 独立于代码版本演进——下游 agent/MCP client/CI 靠这个字段
 # 判断契约形状是否变化，不是靠 parse 人类可读文本。改了 REASON_CODE_* 的
 # 集合或 to_contract() 的字段结构才需要碰这个数字。
 SCHEMA_VERSION = "1"
 
-# CLI 退出码约定（对应任务 1 的验收标准）。AUTO_REPAIR 不出现在这里——
+# CLI 退出码约定。AUTO_REPAIR 不出现在这里——
 # 它在 gate.py 上游（resolve_precondition / _resolve_regular_commit）已经
 # 收敛成 PASS 或 ESCALATE，从不作为终态暴露给调用方。
 EXIT_CODE = {
@@ -59,7 +59,7 @@ class ReasonCode:
     SOFT_COMMIT_PROMISE_SUPPORTED = "SOFT_COMMIT_PROMISE_SUPPORTED"
     BYPASS_HUMAN_JUDGMENT_REQUIRED = "BYPASS_HUMAN_JUDGMENT_REQUIRED"
     ORDERING_PRECONDITION_UNMET = "ORDERING_PRECONDITION_UNMET"
-    # 任务 2（fail-closed）用：evaluator 本身抛异常，不是证据不够格。
+    # fail-closed 用：evaluator 本身抛异常，不是证据不够格。
     EVALUATOR_FAULT = "EVALUATOR_FAULT"
 
 
@@ -83,7 +83,7 @@ def classify_regular_reason_code(*, route: str, Q: float, tau_repair: float,
     return ReasonCode.QUALITY_BELOW_REPAIR_THRESHOLD
 
 
-# ---------- 敏感物纪律 (REVISION_BRIEF.md 任务 5) ----------
+# ---------- 敏感物纪律 ----------
 #
 # 门控核心本身不需要、也不接收任何凭据——evidence 字段是案例领域数据
 # （证件是否已处理、退款账户名是否匹配之类），不是 API key/token。这里
@@ -108,7 +108,7 @@ def redact_secrets(text: str) -> str:
     return _SECRET_PATTERN.sub("[REDACTED]", text)
 
 
-# ---------- fail-closed 语义 (REVISION_BRIEF.md 任务 2) ----------
+# ---------- fail-closed 语义 ----------
 #
 # 区分两类失败：
 #   实质性拒绝（CQ 前置条件不满足）——score_fn 正常返回，只是分数不够格，
@@ -146,10 +146,10 @@ def build_gate_contract(*, gate_state: str, R: float, C: float, O: float,
                          Ro: float, reason_code: str,
                          auto_repair_available: bool,
                          human_readable: str) -> dict:
-    """任务 1 要求的结构化契约——见 REVISION_BRIEF.md 任务 1 的 JSON 示例。
+    """机器可判定的结构化契约。
     下游只应该读 gate_state/reason_code/auto_repair_available 这些结构化
     字段做决策，human_readable 仅供人看，绝不参与机器判断。human_readable
-    在这里统一过一遍 redact_secrets()（任务 5）——这是唯一的出口，所有
+    在这里统一过一遍 redact_secrets()——这是唯一的出口，所有
     GateRecord/GateResult 的 to_contract() 都走这里，不需要每个调用点各自
     记得脱敏。"""
     return {
@@ -268,7 +268,7 @@ class GateRecord:
         }
 
     def to_contract(self) -> dict:
-        """机器可判定契约版本（REVISION_BRIEF.md 任务 1）——route 直接映射成
+        """机器可判定契约版本——route 直接映射成
         gate_state，human_readable 用 notes，机器决策不应该解析这个字段。"""
         return build_gate_contract(
             gate_state=self.route, R=self.R, C=self.C, O=self.O, Ro=self.Ro,

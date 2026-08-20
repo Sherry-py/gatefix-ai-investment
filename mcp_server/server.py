@@ -1,8 +1,7 @@
 """
 mcp_server/server.py —— 把 GateFix 的 4D-CQ gate 包成一个 MCP server。
 
-暴露三个 tool，显式分成读/写两类（REVISION_BRIEF.md 任务 3，借鉴
-research-gun 的读写工具分离）——MCP_TOOL_CATEGORIES 是这个分类的唯一
+暴露三个 tool，显式分成读/写两类（读写工具分离）——MCP_TOOL_CATEGORIES 是这个分类的唯一
 真源，新增 tool 时要求同步登记，tests/test_mcp_server.py 有一条测试断言
 这个字典和 mcp 实际注册的 tool 集合完全对上：
 
@@ -12,7 +11,7 @@ research-gun 的读写工具分离）——MCP_TOOL_CATEGORIES 是这个分类�
     是否 soft_commit、有没有 AUTO_REPAIR，以及打分函数的 docstring（里面
     写了这个函数期望什么样的 evidence 字段）。
   - gate_history_get(case=None, gate_state=None, action_id=None)：查询
-    audit.py 记录下来的历史判定（任务 4），不产生新判定，也不写任何东西。
+    audit.py 记录下来的历史判定，不产生新判定，也不写任何东西。
 
   有副作用（写）：
   - authorize(case, precondition_fn, evidence)：对调用方传入的 evidence
@@ -46,7 +45,7 @@ stdout 纪律：这个文件里没有一处裸 print()——stdout 只留给 MCP
 
 故意不做的事，如实说明（不是漏做，是评估过的边界）：这个 gate 的判定是
 纯 Python 确定性计算（4D-CQ 加权求和 + 阈值比较），微秒级，不调用任何
-网络/LLM API——REVISION_BRIEF.md 任务 3 建议的"立即返回 job_id + 轮询"
+网络/LLM API——"立即返回 job_id + 轮询"
 异步模式是为真正耗时的操作设计的，套在一个瞬时完成的本地计算上只会
 多一次轮询往返、不会更快，属于给不存在的问题上方案。如果未来 gate 判定
 真的接了会阻塞的外部依赖（比如需要调一个真实的第三方核验 API），这个
@@ -129,7 +128,7 @@ def list_precondition_functions(case: str = "ai_investment") -> list[dict]:
 def authorize(case: str, precondition_fn: str, evidence: dict) -> dict:
     """对调用方提交的 evidence 做真实的 4D-CQ 判定。
 
-    返回值是任务 1 定义的机器可判定契约（gate_state/schema_version/
+    返回值是机器可判定契约（gate_state/schema_version/
     cq_scores/reason_code/auto_repair_available/human_readable），外加为了
     不破坏既有调用方而保留的旧字段：route（=gate_state）、
     authorized（route=="PASS" 的布尔值）、R/C/O/Ro/Q、verifiable_ext、
@@ -167,7 +166,7 @@ def authorize(case: str, precondition_fn: str, evidence: dict) -> dict:
     )
     contract = result.to_contract()
 
-    # 副作用：追加一条审计记录（任务 4）。诚实的失败语义——审计写入失败
+    # 副作用：追加一条审计记录。诚实的失败语义——审计写入失败
     # 不影响这次判定的返回值，只把失败情况附加进 human_readable，不吞掉
     # 也不假装成功；client 依然拿到真实、完整的 gate_state。
     audit_record = build_audit_record(
@@ -198,7 +197,7 @@ def authorize(case: str, precondition_fn: str, evidence: dict) -> dict:
 @mcp.tool()
 def gate_history_get(case: Optional[str] = None, gate_state: Optional[str] = None,
                       action_id: Optional[str] = None) -> list[dict]:
-    """只读工具（任务 3/4）：查询 audit.py 记录的历史判定，用于复盘"当初
+    """只读工具：查询 audit.py 记录的历史判定，用于复盘"当初
     为什么放行/拦截"。不产生新判定，不写任何东西——和 authorize() 是两个
     独立的 tool，MCP client 不该把这个当成能触发判定的入口。
 
