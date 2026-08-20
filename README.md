@@ -103,15 +103,15 @@ python mcp_server/server.py   # stdio transport
 
 **核心契约：`route != "PASS"` 时，调用方绝不能把「投资」当作已授权去执行。**
 
-## 第一个样本：穹彻智能
+## 样本说明（以中美绿色基金已投项目为例）
 
-`evidence/ai_investment_evidence.yaml` 里的证据取值来自公开信息 + 公司 BP（均「待核验」），不是真实内部尽调材料。它刻意保留"治理证据大量待确认 + 落地证据口径不清"的真实状态，验证 gate 会不会正确路由到 ESCALATE 而不是默认 PASS：
+`evidence/ai_investment_evidence.yaml` 里的证据取值是一个**已脱敏的示例 AI 项目**，不代表任何具体标的的尽调结论。它刻意保留"治理证据大量待确认 + 落地证据口径不清"的典型状态，验证 gate 会不会正确路由到 ESCALATE 而不是默认 PASS：
 
-- 治理证据 0/6 已确认 → `invest_decision` ESCALATE（黄灯）；
+- 治理证据 0/6 已确认 → `invest_decision` ESCALATE（治理闸门未过）；
 - 落地证据 2/5（部署 + 产业嵌入），付费合同口径不清 → `valuation` ESCALATE，落地等级≈L1；
 - 团队驾驭能力 → BYPASS_TO_HUMAN。
 
-**如实说明**：这是第一个把投资决策编码成确定性判定规则的 case，尚未经过真实投资决策验证（n=0）；打分字段与阈值是首版，待真实案例跑过后收紧。
+**如实说明**：这是第一个把投资决策编码成确定性判定规则的 case，尚未经过真实投资决策验证（n=0）；打分字段与阈值是首版，待真实案例跑过后收紧。样本可以是基金已投的任何项目——把它的尽调材料按同样字段填进 evidence 文件即可。
 
 ## 边界（诚实的现状）
 
@@ -129,7 +129,7 @@ agent/gated_loop.py                # reason → gate → act 循环 + resolve_pr
 mcp_server/server.py               # MCP server：list_precondition_functions / authorize
 commits/ai_investment_commits.yaml # 决策闸门：投资决策 / 估值锁定 / 团队驾驭
 preconditions/ai_investment.py     # 判断标准：治理 6 项 + 落地 5 项（确定性打分函数）
-evidence/ai_investment_evidence.yaml # 证据快照（穹彻样本）
+evidence/ai_investment_evidence.yaml # 证据快照（脱敏示例样本）
 bindings/ai_investment_bindings.yaml # 谁执行（投资团队 → 投委会终审）
 tests/test_ai_investment_case.py   # 回归测试
 ```
