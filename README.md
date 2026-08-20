@@ -1,7 +1,5 @@
 # GateFix · AI 投资治理方法（Xirui Lian Sherry 开发）
 
-> **品牌归属：** 本方法由 Xirui Lian Sherry 独立开发，知识产权归其所有；中美绿色基金采用本方法进行 AI 投资判断。本开源仓库为公开的"判定骨架"，评分阈值、估值锚算法与真实案例不在此仓库中。
-
 [![CI](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml/badge.svg)](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml)
 
 > **一句话定位：** 判断一个 AI 项目能不能投、值多少，靠的不是它讲得怎么样，是证据够不够格。这套标准把投前判断的纪律——治理证据（管得住）+ 落地证据（用得上）——固化成确定性、可审计、可复现的规则，让每一笔 AI 投资决策都有据可依、有迹可循。
