@@ -1,0 +1,37 @@
+# evidence/TEMPLATE_evidence.yaml —— 新项目证据模板
+#
+# 用法：复制本文件为 evidence/<项目名>_evidence.yaml，按尽调情况把每个字段改成 true/false。
+# 引擎按 --case=<项目名> 动态加载，判定核心零改动。
+#
+# 重要边界：这是"证据质量"判定，不是"项目好坏"评价。"未提供/待确认"一律填 false——
+# 红线项缺失会被判为未通过，正是这道闸门要拦的地方。证据真实性归取证层（人工尽调、
+# 第三方核查），闸门只保证判定逻辑确定性、可复现、可审计。
+
+invest_decision:
+  # ---- 治理闸门 6 项（红线 = 备案资质 + 数据合规）----
+  filing_license_verified: false            # 算法/大模型备案号可公开查询
+  data_compliance_verified: false           # 训练数据来源合法且有授权
+  safety_certified: false                   # 安全认证 / 第三方检测
+  controllability_data_present: false       # 远程介入率 / 故障率等可控性数据
+  privacy_compliance_verified: false        # 数据采集隐私合规
+  cross_border_compliance_verified: false   # 跨境数据 / 技术合规
+  # ---- 顺序 / 来源 / 修复 ----
+  compliance_before_operations: false       # 是否确认"先合规后运营"的顺序
+  evidence_source_verified: false           # 证据来源：第三方核验(true) vs 自报(false)
+  governance_gap_externally_verifiable: false  # 治理缺口能否靠外部核查补齐（决定 AUTO_REPAIR）
+
+valuation:
+  # ---- 落地闸门 5 项（红线 = 生产部署 + 付费合同）----
+  production_deployed: false                # 生产环境部署 / 上线记录
+  paying_contracts_verified: false          # 盖章付费合同已核实
+  industry_embedded: false                  # 嵌入真实产业环节
+  economic_value_quantified: false          # 可量化经济价值（收入 / 成本节约）
+  repeat_orders: false                      # 复购 / 续约
+  # ---- 顺序 / 来源 / 修复 ----
+  delivery_before_repeat_claim: false       # 是否"先交付、后声称复购"
+  contract_evidence_verified_third_party: false  # 合同证据：第三方核实(true) vs 自报(false)
+  landing_gap_externally_verifiable: false  # 落地缺口能否靠外部核查补齐（决定 AUTO_REPAIR）
+
+team_capability:
+  # 人情类判断（团队驾驭能力）：不进入 4D-CQ 计算，机器不判，直接 BYPASS_TO_HUMAN 给投委会。
+  note: ""
