@@ -1,6 +1,9 @@
 # GateFix · AI 投资治理方法（Xirui Lian Sherry 开发）
 
 [![CI](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml/badge.svg)](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+
+> **许可协议：** 本仓库采用 **AGPL-3.0 + 商业许可** 双许可模式。开源使用（自行部署、研究、内部工具）遵循 [AGPL-3.0](LICENSE)；如需在闭源产品/服务中集成而不希望承担 AGPL 的开源回馈义务，请通过[商业许可](DUAL-LICENSE.md)获取豁免。详见 [DUAL-LICENSE.md](DUAL-LICENSE.md)。
 
 > **一句话定位：** 判断一个 AI 项目能不能投、值多少，靠的不是它讲得怎么样，是证据够不够格。这套标准把投前判断的纪律——治理证据（管得住）+ 落地证据（用得上）——固化成确定性、可审计、可复现的规则，让每一笔 AI 投资决策都有据可依、有迹可循。
 
