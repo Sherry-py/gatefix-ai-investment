@@ -30,12 +30,24 @@ ALL_GREEN_GOVERNANCE = {
 }
 
 
-def test_list_precondition_functions_exposes_two_gates():
+def test_list_precondition_functions_exposes_five_gates():
     funcs = server.list_precondition_functions(case="ai_investment")
     names = {f["precondition_fn"] for f in funcs}
-    assert names == {"score_invest_governance", "score_landing_level"}
+    assert names == {
+        "score_invest_governance",
+        "score_landing_level",
+        "score_track_valuation",
+        "score_aidc_track_valuation",
+        "score_mna_exit_likelihood",
+    }
     for f in funcs:
-        assert f["commit_name"] in ("AI 项目投资决策（治理证据闸门）", "估值锁定（落地证据闸门）")
+        assert f["commit_name"] in (
+            "AI 项目投资决策（治理证据闸门）",
+            "估值锁定（落地证据闸门）",
+            "赛道估值闸门（国内具身智能定价法）",
+            "赛道估值闸门（算电协同/AIDC能源 并购退路定价法）",
+            "并购退出可能性闸门（并购适配度评分卡）",
+        )
         assert f["doc"]  # docstring is how partners learn what evidence to send
 
 
@@ -86,11 +98,12 @@ def test_authorize_unknown_precondition_raises():
 
 def test_bypass_commit_is_not_exposed_to_external_clients():
     """team_capability is bypass_to_human (人情类，机器不拍板) — the full case
-    has 3 commit points, but list_precondition_functions only exposes the 2
+    has 6 commit points, but list_precondition_functions only exposes the 5
     evidence-judged gates; the bypass commit must not appear, so an external
     client cannot use evidence alone to 'authorize' a decision that belongs to
     the investment committee."""
     funcs = server.list_precondition_functions(case="ai_investment")
     commit_ids = {f["commit_id"] for f in funcs}
-    assert commit_ids == {"invest_decision", "valuation"}
+    assert commit_ids == {"invest_decision", "valuation", "track_valuation",
+                          "aidc_track_valuation", "mna_exit_likelihood"}
     assert "team_capability" not in commit_ids

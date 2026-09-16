@@ -3,3 +3,7 @@ __pycache__/
 .DS_Store
 gate_audit_log.jsonl
 gate_record.jsonl
+notes.jsonl
+
+# 本地网页智能体：含基金 logo 绝对路径 / ~/.dsh 凭据路径 / 内部策略偏好，不提交到 public 仓库
+web_app.py
