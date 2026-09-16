@@ -92,6 +92,28 @@ pip install pytest
 pytest -v
 ```
 
+## 具身智能思维链（chain-of-thought，8 步确定性推理）
+
+`agent/chain_of_thought.py` 把「产业链定位 → 制造属性 → 估值锚 → 产业周期 → 政策/退出概率 → 机构接盘 → 项目状态 → 发展前景」8 步推理固化成一条**显式、有序、前一步喂给后一步**的思维链，用于更准确地判断项目状态、预判发展前景。全部 LLM-free：数据来自 `gatefix_data/` 三张表（标的库 / 机构图谱 / 政策规则库），LLM 只负责从尽调材料提取证据字段。
+
+```bash
+python agent/chain_of_thought.py 极智嘉      # 跑单条思维链（Markdown 输出）
+python agent/chain_of_thought.py 章鱼动力
+```
+
+| 步 | 问题 | 结论来源 |
+|---|---|---|
+| ① 产业链五层定位 | 卖零件/模型/数据/整机/结果？ | 标的库优先 + `classify_value_chain` |
+| ② 制造属性判定 | 制造型/智能型/平台型？ | 标的库优先 + `classify_manufacturing` |
+| ③ 估值锚选择 | 该用哪把尺子量？ | 层级 × 制造属性 查表 |
+| ④ 产业周期定位 | 赛道在光伏哪一段，跨过需求拐点了吗？ | `cn_embodied_cycle` + 商业验证 |
+| ⑤ 政策态度+退出概率 | 政策欢迎还是收紧？ | 标的库 `exit_prob` 优先 + 政策表交叉核对 |
+| ⑥ 机构接盘画像 | 谁在投、谁接盘？ | `BACKER_GRAPH` 反向穿透 |
+| ⑦ 项目状态卡 | 项目当前处于什么状态？ | 上市/盈利/营收/融资 四态合成 |
+| ⑧ 发展前景卡 | 预判发展前景？ | 退出 × 接盘 × 状态 × 周期 加权合成 |
+
+核心纪律：**标的库命中时标的库字段优先；缺数据 fail-closed（不静默猜）；退出概率以标的库研究推导为准、政策表二分只做交叉核对**——避免把「有产业方背书的未盈利整机」误判成「纯叙事」。
+
 ## MCP：给外部合作伙伴的接口
 
 `mcp_server/server.py` 把同一套判定暴露成 MCP tool，任何 MCP client（Claude Desktop、其他 agent 框架）都能调——这是「活证据」版本，不是案例回放：
@@ -131,12 +153,15 @@ gate.py                            # 引擎核心：GateConfig（阈值）+ 4D-C
 engine.py                          # CLI 运行时：按 --case 加载配置 → 打分 → 路由 → 写回
 audit.py                           # append-only 审计日志（不存自由文本）
 agent/gated_loop.py                # reason → gate → act 循环 + resolve_precondition()（MCP server 也调用）
+agent/chain_of_thought.py          # 8 步确定性思维链：产业链定位 → 项目状态 → 发展前景（LLM-free）
+gatefix_data/                      # 数据地基：标的库 / 机构图谱 / 政策规则库（2026-09 快照）
 mcp_server/server.py               # MCP server：list_precondition_functions / authorize
 commits/ai_investment_commits.yaml # 决策闸门：投资决策 / 估值锁定 / 团队驾驭
-preconditions/ai_investment.py     # 判断标准：治理 6 项 + 落地 5 项（确定性打分函数）
+preconditions/ai_investment.py     # 判断标准：治理 6 项 + 落地 5 项 + 产业链分层/退出概率（确定性打分函数）
 evidence/ai_investment_evidence.yaml # 证据快照（脱敏示例样本）
 bindings/ai_investment_bindings.yaml # 谁执行（投资团队 → 投委会终审）
-tests/test_ai_investment_case.py   # 回归测试
+tests/test_ai_investment_case.py   # 回归测试（case 路由 + 产业链/退出维度）
+tests/test_chain_of_thought.py     # 思维链回归测试（8 步 / 状态区分 / 前景分档 / fail-closed）
 ```
 
 ## 换一个项目怎么用

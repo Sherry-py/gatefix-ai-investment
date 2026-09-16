@@ -16,6 +16,24 @@ bindings:
     channel: "条款谈判 → 投委会上会"
     incentive: "职务行为"
 
+  track_valuation:
+    executor_type: human
+    executor: "投资团队（AI 投资合伙人）→ 投委会终审"
+    channel: "赛道定价法锚对照 → 估值谈判 → 投委会上会"
+    incentive: "职务行为"
+
+  aidc_track_valuation:
+    executor_type: human
+    executor: "投资团队（AI 投资合伙人）→ 投委会终审"
+    channel: "并购退路定价法锚对照（PS 3-8x / 20亿规模线 / 红旗#1）→ 估值谈判 → 投委会上会"
+    incentive: "职务行为"
+
+  mna_exit_likelihood:
+    executor_type: human
+    executor: "投资团队（AI 投资合伙人）→ 投委会终审"
+    channel: "并购适配度评分卡（六维度+红旗）→ 条款设计（领售权/并购分配/股票对价）→ 投委会上会"
+    incentive: "职务行为"
+
   team_capability:
     executor_type: human
     executor: "投委会（人工拍板）"

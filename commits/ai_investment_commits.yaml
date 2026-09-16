@@ -34,6 +34,30 @@ commits:
     cost_fix: 0
     precondition_fn: score_landing_level
 
+  - id: track_valuation
+    name_cn: "赛道估值闸门（国内具身智能定价法）"
+    irreversibility: "按赛道定价法锁定的估值档位，决定入场成本与退出空间"
+    cost_reverse: inf
+    value_tier: high
+    cost_fix: 0
+    precondition_fn: score_track_valuation
+
+  - id: aidc_track_valuation
+    name_cn: "赛道估值闸门（算电协同/AIDC能源 并购退路定价法）"
+    irreversibility: "按赛道定价法锁定的估值档位，决定入场成本与并购退出空间"
+    cost_reverse: inf
+    value_tier: high
+    cost_fix: 0
+    precondition_fn: score_aidc_track_valuation
+
+  - id: mna_exit_likelihood
+    name_cn: "并购退出可能性闸门（并购适配度评分卡）"
+    irreversibility: "并购适配度判定一旦拍板即决定标的是否按并购路径设计条款"
+    cost_reverse: inf
+    value_tier: high
+    cost_fix: 0
+    precondition_fn: score_mna_exit_likelihood
+
   - id: team_capability
     name_cn: "团队驾驭能力判断"
     irreversibility: "对'团队能不能把技术落地'的判断一旦拍板即进入投资安排"

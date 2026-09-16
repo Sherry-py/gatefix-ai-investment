@@ -31,6 +31,74 @@ valuation:
   contract_evidence_verified_third_party: false  # 自报
   landing_gap_externally_verifiable: true   # 合同可要求盖章原件核实 → 走 AUTO_REPAIR
 
+track_valuation:
+  # 赛道估值闸门：派别 × 锚（国内具身智能定价法）。本样本是"大脑派半期权区"的代表性
+  # 脱敏数据（结构对应"大脑派 + 融资体量不足 + 自报100亿"的典型状态），不指向任何具体标的。
+  archetype: brain                       # 大脑派（媒体口径明确）
+  archetype_identified: true
+  cumulative_funding: 12                 # 累计融资额估算口径（公开"超10亿"+两轮数亿）
+  cumulative_funding_disclosed: false    # 精确累计融资额待公司书面确认
+  annual_revenue: 1.5                    # 年收入估算口径（约 1-2 亿）
+  revenue_disclosed: false               # 收入未公开，待尽调
+  claimed_valuation: 100                 # 自报/锚点估值 100 亿（用户给定）
+  marginal_pricer_identified: false      # 边际定价者（领投方）穿透到最终出资人待核
+  anchors_before_claimed: true           # 先推导锚、后比对自报（流水线构造保证）
+  anchor_source_verified: true           # 锚数据来自公开报道
+  track_gap_externally_verifiable: true  # 融资额/收入可外部核查 → 走 AUTO_REPAIR
+
+aidc_track_valuation:
+  # 赛道估值闸门（算电协同/AIDC能源 并购退路定价法）。本样本是"收入偏小 + 自报估值
+  # 越过并购退路上界"的代表性脱敏数据（结构对应"电源派 + 收入<1亿 + 自报12亿"的
+  # 典型红旗状态），不指向任何具体标的。
+  archetype: power                       # 电源/HVDC 派（服务器电源）
+  archetype_identified: true
+  annual_revenue: 0.8                    # 年收入估算口径（约 8000 万）
+  revenue_disclosed: false               # 收入未公开，待尽调
+  customer_identified: false             # AIDC 链主客户（浪潮/工业富联/万国数据）待核实
+  claimed_valuation: 12                  # 自报/锚点估值 12 亿（用户给定）
+  marginal_pricer_identified: false      # 边际定价者（领投方）穿透到最终出资人待核
+  anchors_before_claimed: true           # 先推导锚、后比对自报（流水线构造保证）
+  anchor_source_verified: true           # 锚数据来自公开报道
+  track_gap_externally_verifiable: true  # 收入/客户可外部核查 → 走 AUTO_REPAIR
+
+mna_exit_likelihood:
+  # 并购退出可能性闸门（并购适配度评分卡）。本样本是"财务可并表 + 产业逻辑清晰，
+  # 但股权可交割性与估值可谈性待确认、且踩估值红旗"的代表性脱敏数据，不指向任何具体标的。
+  target_name: "算电协同·电源派标的（脱敏样本）"
+  track: power                           # 标的画像（接 MNA_TRACK_MAP 买方/时间窗）
+  archetype: power                       # 电源/HVDC 派
+  annual_revenue: 0.8                    # 年收入估算口径（约 8000 万）
+  claimed_valuation: 12                  # 自报/锚点估值 12 亿
+  # —— 维度一 财务可并表性（25）——
+  auditable_revenue: false               # 收入可审计待尽调
+  gross_margin_not_dilutive: true        # 毛利率不拖累买方
+  profitable_or_near: false              # 未盈利
+  # —— 维度二 产业逻辑单一性（20）——
+  acquisition_logic_one_liner: true      # 一句话说清买方为什么必须买
+  buyer_updownstream_fit: true           # 与买方构成上下游
+  # —— 维度三 股权结构可交割性（20）——
+  shareholder_count_lt_20: false         # 股东数量待核
+  soe_shareholder_exitable: true         # 无国资股东
+  no_repurchase_conflict: true           # 无对赌/回购冲突
+  founder_accepts_stock: false           # 创始人是否接受股票对价待谈
+  # —— 维度四 技术可整合性（15）——
+  modular_tech: true                     # 技术模块化可插入
+  not_founder_dependent: false           # 依赖单一创始人
+  # —— 维度五 客户可继承性（10）——
+  institutional_customers: true          # 客户是机构关系
+  no_customer_conflict: true             # 客户与买方不冲突
+  # —— 维度六 估值可谈性（10）——
+  valuation_below_buyer_bid: false       # 上一轮估值是否低于买方能给的对价待核
+  # —— 红旗（显式）——
+  redflag_soe_gt_30: false
+  redflag_founder_ipo_only: false
+  redflag_thirdparty_ip: false
+  redflag_vie: false
+  # —— 顺序 / 稳健 / 可修 ——
+  mna_fit_before_valuation: true         # 先做适配度、后谈估值
+  mna_source_verified: false             # 自报，第三方待核
+  mna_gap_externally_verifiable: true    # 股权/财务可外部核查 → 走 AUTO_REPAIR
+
 team_capability:
   # bypass_to_human，不进入 4D-CQ 计算，无证据字段
   note: "团队驾驭能力（能不能落地）需投委会人工判断，机器不替这一步做主"
