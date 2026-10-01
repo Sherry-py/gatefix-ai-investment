@@ -8,7 +8,7 @@ engine.py —— 运行时引擎：组装上下文 → Precondition 判定 → �
 按 --case 动态加载四份场景配置（commits/<case>_commits.yaml、
 bindings/<case>_bindings.yaml、evidence/<case>_evidence.yaml、
 preconditions/<case>.py），engine.py 和 gate.py 本身不含任何场景特定逻辑。
-当前场景为 ai_investment（GateFix 方法（GateFix Maintainer 开发）· 中美绿色基金采用）。
+当前场景为 ai_investment（GateFix 方法 · 中美绿色基金采用）。
 """
 
 import argparse

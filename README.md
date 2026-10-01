@@ -1,4 +1,6 @@
-# GateFix · AI 投资治理方法（GateFix Maintainer 开发）
+# GateFix · AI 投资治理方法
+
+**简体中文** ｜ [English](README.en.md)
 
 [![CI](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml/badge.svg)](https://github.com/Sherry-py/gatefix-ai-investment/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)

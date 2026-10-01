@@ -1,5 +1,5 @@
 """
-preconditions/ai_investment.py —— "GateFix 方法（GateFix Maintainer 开发）· 中美绿色基金采用"（case=ai_investment）的
+preconditions/ai_investment.py —— "GateFix 方法 · 中美绿色基金采用"（case=ai_investment）的
 precondition 判定函数（Pᵢ(E,θᵢ) 的具体实现）
 
 这是把判定对象从"某个 agent 动作能不能放行"换到"对某个 AI 项目的投资决策，证据
@@ -120,22 +120,33 @@ def score_landing_level(evidence: dict) -> dict:
 
 
 def repair_invest_governance(evidence: dict) -> dict:
-    """AUTO_REPAIR：备案/数据合规缺口可外部核查——模拟"去查一遍公开备案系统/索要数据
-    授权证明"。只补可外部核查的字段，不碰安全认证/可控性等需要现场核实的字段。"""
-    new_evidence = dict(evidence)
-    new_evidence["filing_license_verified"] = True
-    new_evidence["data_compliance_verified"] = True
-    new_evidence["evidence_source_verified"] = True
-    return new_evidence
+    """AUTO_REPAIR：fail-closed 占位（v2 修订）。
+
+    原实现"模拟去查一遍公开备案系统"，直接把 filing_license_verified /
+    data_compliance_verified / evidence_source_verified 硬编码为 True。
+    这在实测中造出了一条 fail-open 路径：一个"材料明示未备案且已上线"、
+    但其余合规项覆盖良好的项目，落进 AUTO_REPAIR 区间后被"补"成 Q=1.0 → PASS。
+
+    现在改为 **不改变证据**：真实补证需要外部证据通道（去公开系统查备案号、
+    索要授权链原件），在接上该通道之前，本函数必须返回原证据不变。
+    resolve_precondition 的空转检测（dry_rounds）会据此收敛到 ESCALATE。
+    """
+    return dict(evidence)
 
 
 def repair_landing_level(evidence: dict) -> dict:
-    """AUTO_REPAIR：付费合同缺口可外部核查——模拟"要求项目方提供盖章合同原件"。
-    只补合同核实，不碰复购/经济价值等需要时间验证的字段。"""
-    new_evidence = dict(evidence)
-    new_evidence["paying_contracts_verified"] = True
-    new_evidence["contract_evidence_verified_third_party"] = True
-    return new_evidence
+    """AUTO_REPAIR：fail-closed 占位（v2 修订）。
+
+    原实现把 paying_contracts_verified 与 contract_evidence_verified_third_party
+    硬编码为 True，即"假装已经拿到了盖章合同原件并完成第三方核验"。
+    实测（PhysenAI BP）：提取结果里 contract_evidence_verified_third_party 是
+    **absent（材料未提及）**，却被本函数翻成 True → Ro 0.3→1.0 → Q=1.0
+    → **PASS + L3 规模复购**。一份纯 BP 因此被判满分。
+
+    现在改为不改变证据。真实补证 = 向项目方索要盖章合同原件并独立核验，
+    在接上该通道之前必须 fail-closed。
+    """
+    return dict(evidence)
 
 
 VALUATION_TOLERANCE = 0.20  # ±20% 容忍带，吸收估值数值取整/口径差异
@@ -247,7 +258,10 @@ PS_BODY_BENCHMARK = 24.7         # 宇树发行 PS 基准（发行 420 亿 / 202
 FUNDING_MULTIPLE_LOW = 3.0
 FUNDING_MULTIPLE_HIGH = 5.0
 
-ARCHETYPES = ("body", "brain", "component")  # 本体派 / 大脑派 / 关键部件派
+# ⚠️ 这是【具身估值法】的三派词表，与叙事筛选的四原型是两套互不兼容的分类，
+# 绝不可同名：历史上两者共用 ARCHETYPES，叙事那份（第 1898 行导入）覆盖了本表，
+# 导致 ticket_anchor（200 亿门票价）与 funding_anchor（3–5x 融资体量锚）恒为 None。
+EMBODIED_ARCHETYPES = ("body", "brain", "component")  # 本体派 / 大脑派 / 关键部件派
 
 
 def _num(v):
@@ -267,7 +281,7 @@ def cn_embodied_ai_anchors(*, funding=None, revenue=None, archetype=None):
     f = _num(funding)
     r = _num(revenue)
     anchors = {
-        "archetype": archetype if archetype in ARCHETYPES else None,
+        "archetype": archetype if archetype in EMBODIED_ARCHETYPES else None,
         "funding_anchor": None,   # (low, high) 融资体量锚
         "ticket_anchor": None,    # 门票锚（仅大脑/关键部件派）
         "ps_anchor": None,        # PS 锚（有营收才成立）
@@ -315,6 +329,141 @@ def track_ruler_zone(claimed, anchors, tol=VALUATION_TOLERANCE):
             return "at_ceiling", "合理"
         return "above_ceiling", "溢价"
     return "indeterminate", None   # 无金融尺子也无上限锚（数据不足）
+
+
+# ------------------------------------------------------------ 以退定投反推法（v2）
+#
+# "锚定法"（上方 cn_embodied_ai_anchors/track_ruler_zone）回答【贵不贵】：
+#   自报估值落在哪根尺子上。
+# "反推法"（本段）回答【我能不能投】：要达到目标回报，我方最高能出多少。
+# 两者互补——"贵"与"我的回报不成立"是两件事。
+#
+# 纪律：
+#   1. 纯算术，不调模型、不引入主观分。
+#   2. **无退出锚或无收入基数时返回 None，不给数字**——强行给数字就是制造虚假精确。
+#   3. 基准模式与风险加权模式不可混用，否则风险被重复计算。
+
+DEFAULT_DILUTION = 1.6      # 后续轮次稀释假设（1.6x ≈ 再融 2–3 轮）
+DEFAULT_YEARS = 5
+
+
+def reverse_valuation_cap(*, exit_value, target_moic, dilution=DEFAULT_DILUTION,
+                          success_prob=None):
+    """以退定投：给定退出假设与回报要求，我方最高可出的【投后估值】。
+
+    基准模式（MOIC 已含风险溢价，实务主流）：
+        可投上限 = 退出市值 ÷ (目标 MOIC × 稀释系数)
+    风险加权模式（MOIC 是组合级要求，更保守）：
+        可投上限 = 退出市值 × 终值成功概率 ÷ (目标 MOIC × 稀释系数)
+
+    ⚠️ 传 success_prob 即切风险加权模式；两模式结果相差一个量级，必须写明用了哪个。
+    任一分母/分子非法（None、非正）→ 返回 None（fail-closed）。
+    """
+    ev, m, d = _num(exit_value), _num(target_moic), _num(dilution)
+    if ev is None or m is None or d is None:
+        return None
+    cap = ev / (m * d)
+    if success_prob is not None:
+        p = _num(success_prob)
+        if p is None or p > 1:
+            return None
+        cap *= p
+    return cap
+
+
+def required_exit_for_entry(*, entry_valuation, target_moic, dilution=DEFAULT_DILUTION):
+    """反算：按这个入场价，需要多大的【退出市值】才能达到目标 MOIC。"""
+    e, m, d = _num(entry_valuation), _num(target_moic), _num(dilution)
+    if e is None or m is None or d is None:
+        return None
+    return e * m * d
+
+
+def required_growth(*, entry_valuation, current_revenue, exit_ps, target_moic,
+                    dilution=DEFAULT_DILUTION, years=DEFAULT_YEARS):
+    """反算：按这个入场价，退出时需要做到多少收入、多少倍增长、多少 CAGR。
+
+    返回 None = **此处无尺子**：没有收入基数、没有退出 PS 锚、或入场价非法时，
+    不得给数字（L0 叙事项目即属此列——没有收入就没有退出市值锚）。
+    返回 dict：required_exit_value / required_exit_revenue / growth_multiple / cagr / years
+    """
+    need_exit = required_exit_for_entry(entry_valuation=entry_valuation,
+                                       target_moic=target_moic, dilution=dilution)
+    ps, rev, y = _num(exit_ps), _num(current_revenue), _num(years)
+    if need_exit is None or ps is None or rev is None or y is None or y <= 0:
+        return None
+    need_rev = need_exit / ps
+    mult = need_rev / rev
+    return {
+        "required_exit_value": need_exit,
+        "required_exit_revenue": need_rev,
+        "growth_multiple": mult,
+        "cagr": mult ** (1.0 / y) - 1.0,
+        "years": y,
+    }
+
+
+def exit_value_from_revenue(revenue, exit_ps):
+    """退出市值 = 退出时收入 × 退出 PS 倍数。任一缺失返回 None。"""
+    r, ps = _num(revenue), _num(exit_ps)
+    if r is None or ps is None:
+        return None
+    return r * ps
+
+
+def valuation_dual_view(*, claimed_valuation, current_revenue, exit_ps,
+                        target_moic, dilution=DEFAULT_DILUTION, success_prob=None,
+                        exit_revenue_scenarios=None):
+    """一次给出【锚定 + 反推】双视图，供结论层直接消费。
+
+    返回 dict：
+      ok              False = 无尺子（不得出数字结论），并在 reason 说明
+      claimed        自报/目标投后估值
+      claimed_ps     自报估值 ÷ 当前收入（倍）；无收入则 None
+      caps           各退出情景下的可投上限（保守/中性/乐观）
+      required       按 claimed 入场所需的退出市值/收入/增长/CAGR
+    """
+    claimed = _num(claimed_valuation)
+    rev = _num(current_revenue)
+    ps = _num(exit_ps)
+
+    out = {"ok": False, "reason": None, "claimed": claimed,
+           "claimed_ps": (claimed / rev) if (claimed and rev) else None,
+           "exit_ps": ps, "target_moic": _num(target_moic),
+           "dilution": _num(dilution), "caps": {}, "required": None}
+
+    if claimed is None:
+        out["reason"] = "自报/目标估值缺失"
+        return out
+    if ps is None:
+        out["reason"] = "无退出 PS 锚——以退定投不成立，此处无尺子"
+        return out
+    if rev is None:
+        out["reason"] = "无收入基数（L0/L1 无营收）——无法反推退出市值，此处无尺子"
+        return out
+
+    scen = exit_revenue_scenarios or {
+        "保守（按当前收入退出）": rev,
+        "中性（{}年后到 {} 亿收入）".format(DEFAULT_YEARS, round(rev * 3.3, 1)): rev * 3.3,
+        "乐观（{}年后到宇树级 17 亿）".format(DEFAULT_YEARS): 17.0,
+    }
+    for name, exit_rev in scen.items():
+        ev = exit_value_from_revenue(exit_rev, ps)
+        out["caps"][name] = {
+            "exit_revenue": exit_rev,
+            "exit_value": ev,
+            "cap_base": reverse_valuation_cap(exit_value=ev, target_moic=target_moic,
+                                              dilution=dilution),
+            "cap_risk_weighted": reverse_valuation_cap(
+                exit_value=ev, target_moic=target_moic, dilution=dilution,
+                success_prob=success_prob) if success_prob is not None else None,
+        }
+
+    out["required"] = required_growth(entry_valuation=claimed, current_revenue=rev,
+                                     exit_ps=ps, target_moic=target_moic,
+                                     dilution=dilution)
+    out["ok"] = True
+    return out
 
 
 def score_track_valuation(evidence: dict) -> dict:
@@ -1581,23 +1730,28 @@ def render_price_model(evidence: dict, name: str = "") -> str:
 
 
 # ============================================================
-# 中美绿色合规边界（行政令14105 + 关税 · 2026-09）
+# 本基金可投性边界（2026-09-28 修订：原"14105 法律禁投"系误用）
 # ============================================================
-# 决定性法律事实：美国对华投资限制（行政令14105，2024-10-28 最终规则，2025-01-02 生效）
-# 只覆盖三个领域——半导体与微电子、量子信息技术、人工智能。清洁能源不在受限名单。
-# → AI 的电力底座同时享有 AI 需求刚性 + 绿色投资政策豁免。
+# ⚠️ 修订说明（2026-09-28）：原表以"行政令 14105 禁止本基金投资"作为"受限"依据，属误用。
+# 14105 是美国对外投资限制，约束的是"美国人"的对华投资；本基金为境内人民币基金、
+# LP 全部境内，不涉及美国主体，不适用该行政令。
+# → 原"受限/豁免"改为"不投/可投"，依据是【投资理由】而非法律禁止：
+#   上游半导体/量子/AI 软件不投 = 一级市场买不到（已被上市公司/巨头/国家队占满）
+#   + 估值与二级脱锚 + 重资产长周期与 7–10 年基金期限不匹配 + 非绿色身份占位。
+# 保留 14105 相关事实仅作【交易结构参考】：若未来买方或共同投资人涉及美国主体，
+# 该标的的可交割性会受影响——这是"下一棒"问题，不是本基金的投资禁令。
 # 货物贸易：投资通道开着，货物通道基本封了（光伏 50% 关税、锂电 25%、多晶硅调查、光伏退税取消）。
 
 US_CHINA_COMPLIANCE = {
-    "semiconductor": ("受限", "行政令14105：半导体与微电子"),
-    "quantum": ("受限", "行政令14105：量子信息技术"),
-    "ai_software": ("受限", "行政令14105：人工智能"),
-    "clean_energy": ("豁免", "清洁能源不在 14105 受限名单"),
-    "nuclear_smr": ("豁免", "核电/SMR 属清洁能源，不在受限名单"),
-    "grid": ("豁免", "电网是纯工程/资本问题，几乎不可能被政治化"),
-    "long_duration_storage": ("豁免", "长时储能属清洁能源"),
-    "liquid_cooling": ("豁免", "数据中心能效，不触及受限三领域"),
-    "industrial_energy_efficiency": ("豁免", "工业能效/余热利用，不触及受限三领域"),
+    "semiconductor": ("不投", "非法律禁止；一级买不到（已被上市公司/巨头/国家队占满）+ 估值脱锚"),
+    "quantum": ("不投", "非法律禁止；一级几无可投标的，且非绿色身份占位"),
+    "ai_software": ("不投", "非法律禁止；模型层估值与二级脱锚，定价者≠退出者"),
+    "clean_energy": ("可投", "绿色身份占位；无跨境投资限制"),
+    "nuclear_smr": ("可投", "清洁能源；但需核期限匹配（SMR 属 20 年战略资本）"),
+    "grid": ("可投", "电网是纯工程/资本问题，几乎不可能被政治化"),
+    "long_duration_storage": ("可投", "长时储能，绿色身份占位"),
+    "liquid_cooling": ("可投", "数据中心能效；客户非电网"),
+    "industrial_energy_efficiency": ("可投", "工业能效/余热利用"),
     "solar_component": ("关税暴露", "光伏电池片关税 50% + 出口退税取消 + 产能过剩"),
     "lithium_battery": ("关税暴露", "锂电加征 25% 关税"),
     "polysilicon": ("关税暴露", "中国对美太阳能级多晶硅发起调查"),
@@ -1605,7 +1759,11 @@ US_CHINA_COMPLIANCE = {
 
 
 def compliance_exposure(field: str) -> tuple:
-    """给定领域 → 合规判定 (status, reason)。status ∈ {受限, 豁免, 关税暴露, 未知}。确定性查表。"""
+    """给定领域 → 本基金可投性判定 (status, reason)。
+    status ∈ {可投, 不投, 关税暴露, 未知}。确定性查表。
+
+    ⚠️ status 表达的是"本基金的可投性"，不是"法律许可"。本基金不适用美国对外投资
+    限制（行政令 14105）——14105 约束的是美国主体的对华投资。"""
     return US_CHINA_COMPLIANCE.get(field, ("未知", "需按最新政策逐案核实"))
 
 
@@ -1857,7 +2015,7 @@ def render_value_chain_exit_report(evidence: dict) -> str:
         f"# {name} · 产业链定位 + 退出概率 {lib_note}\n\n"
         f"## 一、产业链五层定位\n\n"
         f"- 层级：**{vc['layer']}**\n"
-        f"- 估值锚：{vc['valuation_anchor'] or '未识别'}\n"
+        f"- 估值参照：{vc['valuation_anchor'] or '未识别'}\n"
         f"- {vc['note']}\n\n"
         f"## 二、制造属性\n\n- **{mfg['profile']}**（{mfg['note']}）\n\n"
         f"## 三、产业周期（光伏类比）\n\n- **{cycle['stage_cn']}**\n- {cycle['note']}\n\n"
@@ -1870,6 +2028,367 @@ def render_value_chain_exit_report(evidence: dict) -> str:
     )
 
 
+# ============================================================
+# Layer 0 叙事筛选闸门（narrative screen · 2026-09 校准）
+# ============================================================
+# 把"这个项目的业务实质是否与 AI 叙事一致、最终买家在链外还是链内"编码成
+# 确定性规则。在所有闸门之前跑（Layer 0），命中即 NARRATIVE_RED_FLAG。
+# 方法论来源（见《GateFix叙事筛选层_Layer0_设计文档》）：
+#   ① 剥离测试（删掉 AI 词汇，本质是什么业务）
+#   ② 外部买家测试（最终付款方链外 vs 链内互付）
+#   ③ 八条财务红旗（任一命中即财务逻辑不成立）
+#   ④ 四原型 × 三种钱 → 风险档（alpha_high / alpha / beta / beta_weak）
+#   ⑤ tokens/MW 判据（每度电的智能产出，NVIDIA Ian Buck 盖章）
+# 与其它闸门同构：LLM 只产证据字段，本层全 Python 确定性计算，缺数据 fail-closed。
+
+# —— 规则表（gatefix_data/narrative_rules.py）；未部署则降级空表、函数 fail-closed ——
+try:
+    from gatefix_data.narrative_rules import (  # noqa: F401
+        NARRATIVE_RED_FLAGS, ARCHETYPES, CAPITAL_ROLES,
+        ARCHETYPE_CAPITAL_TIER, ARCHETYPE_LABELS, CAPITAL_ROLE_LABELS,
+    )
+except ImportError:  # 降级：空表，narrative_screen 全部 fail-closed
+    NARRATIVE_RED_FLAGS = []
+    ARCHETYPES = ()
+    CAPITAL_ROLES = ()
+    ARCHETYPE_CAPITAL_TIER = {}
+    ARCHETYPE_LABELS = {}
+    CAPITAL_ROLE_LABELS = {}
+
+
+def _line_verdict(strip_pass: bool, buyer_external: bool, red_flag_count: int, has_industrial: bool) -> str:
+    """单条业务线的三态裁决（确定性）。"""
+    is_clean = strip_pass and buyer_external and red_flag_count == 0
+    if is_clean:
+        return "PASS"                  # 真价值，无包装
+    if has_industrial:
+        return "CHAIN_PREMIUM"         # 包装A：有产业方接盘，可参与
+    return "NARRATIVE_RED_FLAG"        # 包装B：纯叙事/无产业接盘，排除
+
+
+def narrative_screen(evidence: dict, target_name: str = None) -> dict:
+    """Layer 0 叙事筛选 v3（确定性，LLM-free）。支持【业务线拆分】。
+    verdict ∈ {"PASS", "CHAIN_PREMIUM", "NARRATIVE_RED_FLAG", "MIXED"}。
+      PASS = 整体真价值；CHAIN_PREMIUM = 包装A（有产业方接盘）；
+      NARRATIVE_RED_FLAG = 整体排除；MIXED = 部分真（真业务+叙事混合，需拆线分别投）。
+    当 evidence 含 business_lines（多条业务线）时，逐条裁决后聚合为整体 verdict：
+      全部 PASS → PASS；有 PASS 也有非 PASS → MIXED；无 PASS → NARRATIVE_RED_FLAG。
+    下一棒判定是【确定性查表】，不是 LLM 推断：查 backer_profile(target_name) 的
+    产业资本(has_industrial_backer)；国资(has_soe_backer)是"政策导向性支持"，不构成溢价退出。"""
+    # 确定性 backer 查表（下一棒：产业方=溢价接盘，国资=政策接盘）
+    bp = backer_profile(target_name) if target_name else None
+    has_industrial = bool((bp or {}).get("has_industrial_backer"))
+    has_soe = bool((bp or {}).get("has_soe_backer"))
+
+    # ④ 四原型 + 三种钱（枚举，非法值 → None，fail-closed）
+    archetype = evidence.get("archetype") if evidence.get("archetype") in ARCHETYPES else None
+    capital_role = evidence.get("capital_role") if evidence.get("capital_role") in CAPITAL_ROLES else None
+    tier = ARCHETYPE_CAPITAL_TIER.get((archetype, capital_role)) if archetype and capital_role else None
+
+    # —— 业务线拆分（v3）：evidence 带 business_lines 时逐条裁决并聚合 ——
+    business_lines = evidence.get("business_lines")
+    if business_lines:
+        line_results = []
+        for ln in business_lines:
+            ln_strip = bool(ln.get("stripped_business_viable"))
+            ln_buyer = bool(ln.get("final_buyer_external"))
+            ln_flags = [label for field, label in NARRATIVE_RED_FLAGS if field in (ln.get("red_flags") or [])]
+            ln_verdict = _line_verdict(ln_strip, ln_buyer, len(ln_flags), has_industrial)
+            line_results.append(dict(
+                name=str(ln.get("name") or ""),
+                revenue_share=ln.get("revenue_share"),
+                verdict=ln_verdict,
+                strip_pass=ln_strip,
+                buyer_external=ln_buyer,
+                red_flags=ln_flags,
+            ))
+        true_lines = [l for l in line_results if l["verdict"] == "PASS"]
+        non_true = [l for l in line_results if l["verdict"] != "PASS"]
+        if true_lines and non_true:
+            overall = "MIXED"             # 部分真：真业务可投，叙事业务单独重审
+        elif true_lines:
+            overall = "PASS"              # 整体真价值
+        else:
+            overall = "NARRATIVE_RED_FLAG"  # 整体排除
+        return dict(
+            strip_pass=None, buyer_external=None,  # 公司级字段让位于业务线拆分
+            has_next_buyer=has_industrial, premium_space=has_industrial,
+            has_soe_backer=has_soe,
+            industrial_backers=(bp or {}).get("industrial", []),
+            soe_backers=(bp or {}).get("soe", []),
+            next_buyer_note=evidence.get("next_buyer_note", ""),
+            red_flags=[], red_flag_count=0,
+            archetype=archetype, capital_role=capital_role, tier=tier,
+            business_lines=line_results,
+            true_lines=[l["name"] for l in true_lines],
+            narrative_lines=[l["name"] for l in non_true],
+            policy=policy_alignment(evidence, target_name),
+            verdict=overall,
+        )
+
+    # —— 单条业务线（无拆分，公司整体）——
+    strip_pass = bool(evidence.get("stripped_business_viable"))
+    buyer_external = bool(evidence.get("final_buyer_external"))
+    red_flags = [label for field, label in NARRATIVE_RED_FLAGS if evidence.get(field)]
+    red_flag_count = len(red_flags)
+    verdict = _line_verdict(strip_pass, buyer_external, red_flag_count, has_industrial)
+
+    return dict(strip_pass=strip_pass, buyer_external=buyer_external,
+                has_next_buyer=has_industrial, premium_space=has_industrial,
+                has_soe_backer=has_soe,
+                industrial_backers=(bp or {}).get("industrial", []),
+                soe_backers=(bp or {}).get("soe", []),
+                next_buyer_note=evidence.get("next_buyer_note", ""),
+                red_flags=red_flags, red_flag_count=red_flag_count,
+                archetype=archetype, capital_role=capital_role, tier=tier,
+                policy=policy_alignment(evidence, target_name),
+                verdict=verdict)
+
+
+def policy_alignment(evidence: dict, target_name: str = None) -> dict:
+    """政策-业务关联判定（确定性，LLM-free）。判断公司是"利用政策做产业链架构"（真），
+    还是"直接响应政策做表面包装"（伪）。
+    核心认知：国家政策是"放水养鱼"（创造环境/需求），不是"定点支持"。真正有价值的公司
+    是把政策当"水"（环境），用它构建产业链架构 + 商业模式；伪价值公司把政策当"标签"，
+    直接响应政策做个表面业务包装。
+    输入字段（LLM 提取）：
+      policy_usage_mode：architect(利用政策做产业链/商业模式) / wrapper(直接响应政策做表面包装) / irrelevant(与政策无关)
+      business_layout_time：公司相关业务布局年份（如 2019，未知填 null）
+      policy_issue_time：政策发布年份（如 2026，未知填 null）
+      has_chain_architecture：是否有产业链架构（上下游闭环/多环节卡位/可复制商业模式）
+    判定（确定性，缺数据 fail-closed 到 indeterminate）：
+      architect = 业务布局 ≤ 政策发布（先知，政策前就做）或 有产业链架构（政策是环境不是标签）
+      wrapper   = 业务布局 > 政策发布（跟风）且 无产业链架构（政策是标签）
+      irrelevant= 与政策无关
+      indeterminate = 数据缺失"""
+    mode = evidence.get("policy_usage_mode")
+    layout_t = evidence.get("business_layout_time")
+    policy_t = evidence.get("policy_issue_time")
+    policy_name = evidence.get("policy_name")
+    has_chain = bool(evidence.get("has_chain_architecture"))
+
+    # 政策发布时间【确定性查表】：政策名 → 年份，替代 LLM 凭记忆猜年份
+    try:
+        from gatefix_data.policy_timeline import lookup_policy_year
+    except ImportError:
+        lookup_policy_year = lambda name: None
+    looked_up_year = lookup_policy_year(policy_name)
+    if looked_up_year is not None:
+        policy_t = looked_up_year  # 用确定性年份覆盖 LLM 的
+
+    # 公司业务布局年份【确定性查表】：公司名 → 年份，替代 LLM 凭记忆猜成立年份
+    try:
+        from gatefix_data.company_timeline import lookup_company_year
+    except ImportError:
+        lookup_company_year = lambda name: None
+    looked_up_layout = lookup_company_year(target_name)
+    if looked_up_layout is not None:
+        layout_t = looked_up_layout  # 用确定性年份覆盖 LLM 的
+
+    # 时间线判定：业务布局 vs 政策发布（缺数据 fail-closed → None，不误判）
+    if layout_t is None or policy_t is None:
+        layout_before_policy = None
+    else:
+        try:
+            layout_before_policy = float(layout_t) <= float(policy_t)
+        except (TypeError, ValueError):
+            layout_before_policy = None
+
+    if mode == "irrelevant":
+        verdict = "irrelevant"
+    elif mode in ("architect", "wrapper"):
+        verdict = mode  # LLM 已判定，直接采信（但用时间线/架构交叉核对）
+        # 交叉核对：若 LLM 判 wrapper，但业务实际在政策前布局且有产业链架构 → 修正为 architect
+        if mode == "wrapper" and layout_before_policy and has_chain:
+            verdict = "architect"
+        # 若 LLM 判 architect，但业务在政策后跟风且无产业链架构 → 修正为 wrapper
+        if mode == "architect" and layout_before_policy is False and not has_chain:
+            verdict = "wrapper"
+    elif layout_before_policy is not None:
+        # LLM 未明确判定，用时间线+架构确定性推导
+        if layout_before_policy and has_chain:
+            verdict = "architect"
+        elif layout_before_policy is False and not has_chain:
+            verdict = "wrapper"
+        else:
+            verdict = "indeterminate"
+    else:
+        verdict = "indeterminate"
+
+    label = {"architect": "真利用（政策是水，做产业链架构）",
+             "wrapper": "伪响应（政策是标签，做表面包装）",
+             "irrelevant": "与政策无关",
+             "indeterminate": "待核实（数据缺失）"}[verdict]
+    return dict(verdict=verdict, label=label,
+                policy_usage_mode=mode, business_layout_time=layout_t,
+                policy_issue_time=policy_t, policy_name=policy_name,
+                policy_year_source="查表" if looked_up_year is not None else "LLM",
+                has_chain_architecture=has_chain,
+                layout_before_policy=layout_before_policy)
+
+
+def score_narrative_screen(evidence: dict) -> dict:
+    """Layer 0 叙事筛选证据闸门（4D-CQ 同构）。evidence 覆盖字段（4 项，bool）：
+    ai_revenue_share_disclosed（AI/算力收入占比已披露）、
+    final_buyer_identified（最终付款方已识别）、
+    archetype_classified（四原型之一已识别）、
+    capital_role_classified（三种钱角色已识别）；
+    红线 = stripped_business_viable（剥离测试通过）+ final_buyer_external
+    （链外买家）+ red_flag_count == 0（零红旗），由 narrative_screen()
+    确定性计算，不经过 LLM；
+    另有 screen_before_chain（先筛选后走链，按构造 True）、
+    screen_source_verified（筛选证据第三方 vs 自报）、
+    screen_gap_externally_verifiable（缺口能否外部核查，决定 AUTO_REPAIR）。
+    显示字段（仅用于 notes/报告，不参与打分）：stripped_business_note /
+    final_buyer_note / ai_revenue_share_pct。"""
+    ns = narrative_screen(evidence, evidence.get("_target_name"))
+    dims = [
+        bool(evidence.get("ai_revenue_share_disclosed")),
+        bool(evidence.get("final_buyer_identified")),
+        ns["archetype"] is not None,
+        ns["capital_role"] is not None,
+    ]
+    covered = sum(dims)
+    C = covered / len(dims)
+
+    # Relevance 红线：只有"真价值"（PASS）算红线通过；CHAIN_PREMIUM（包装A）
+    # 与 NARRATIVE_RED_FLAG（包装B）都不算——包装需升级人工判断退出时机/溢价。
+    red_line_ok = ns["verdict"] == "PASS"
+    R = 1.0 if red_line_ok else 0.2
+
+    O = 1.0 if evidence.get("screen_before_chain") else 0.4
+    Ro = 1.0 if evidence.get("screen_source_verified") else 0.3
+    verifiable_ext = bool(evidence.get("screen_gap_externally_verifiable", True))
+
+    names = ["AI占比", "付款方", "原型", "资金角色"]
+    detail = "/".join(
+        ("✓" if dims[i] else "缺") + names[i] for i in range(len(names))
+    )
+    redflag_text = ("；".join(ns["red_flags"])) if ns["red_flags"] else "无"
+    verdict_label = {"PASS": "真价值·可投", "CHAIN_PREMIUM": "有条件参与·有产业方承接",
+                     "NARRATIVE_RED_FLAG": "叙事未验证·建议排除", "MIXED": "部分真·需拆线分投"}
+    line_text = ""
+    if ns.get("business_lines"):
+        line_text = "；".join(f"{l['name']}→{verdict_label.get(l['verdict'], l['verdict'])}" for l in ns["business_lines"])
+    notes = (
+        f"叙事筛选覆盖 {covered}/4（{detail}）；"
+        f"结论【{verdict_label.get(ns['verdict'], ns['verdict'])}】；"
+        + (f"业务线：{line_text}；" if line_text else "")
+        + f"产业接盘{'有' if ns['has_next_buyer'] else '无/未收录'}；"
+        f"国资接盘{'有(政策,不溢价)' if ns['has_soe_backer'] else '无/未收录'}；"
+        f"红旗 {ns['red_flag_count']}/8（{redflag_text}）；"
+        f"原型{ARCHETYPE_LABELS.get(ns['archetype'], '未识别')}；"
+        f"资金角色{CAPITAL_ROLE_LABELS.get(ns['capital_role'], '未识别')}；"
+        f"风险档{ns['tier'] or '未识别'}"
+    )
+    return dict(R=R, C=C, O=O, Ro=Ro, verifiable_ext=verifiable_ext, notes=notes, screen=ns)
+
+
+def repair_narrative_screen(evidence: dict) -> dict:
+    """AUTO_REPAIR：披露/来源可外部核查——模拟"去财报/公开融资库补 AI 收入占比"。
+    只补可外部核查的字段（AI占比披露、来源第三方），绝不修改剥离测试、买家判定或
+    红旗结论——换皮和链内循环不能靠翻 bool 修复，改判定等于做账。"""
+    new_evidence = dict(evidence)
+    new_evidence["ai_revenue_share_disclosed"] = True
+    new_evidence["screen_source_verified"] = True
+    return new_evidence
+
+
+# ============================================================
+# 早期潜力层（Layer -1 · 团队与创始人 · 2026-09 校准）
+# ============================================================
+# 这是把"早期项目怎么判断团队"编码成确定性规则的一层，与 L0-L3 落地证据层并列。
+# 依据（全球顶尖早期投资机构的"硬门"，综合中美）：
+#   美国（Vela Partners 对 Sequoia/Benchmark/a16z/Founders Fund/Thrive/Lightspeed
+#         2024-2026 约 70 笔种子/A 轮的拆解）：
+#     Sequoia      = 精英研究资质（PhD / 顶级实验室）
+#     a16z         = 顶级 AI 实验室出身 + 开源社区
+#     Founders Fund = 竞赛奖牌（IOI/IMO）
+#     Thrive       = 大厂规模构建（built at scale）
+#     Lightspeed   = 同领域先前退出 / 研究影响
+#     Benchmark    = 市场采用（$1M+ ARR）
+#   中国（沈南鹏红杉中国、招商局创投、华润创投、真格基金）：
+#     沈南鹏    = 创业者精神 > 能力；使命感 / 正能量；反木桶理论（独门武功）；
+#                 会算账（毛利率 / 单位经济）；根据市场反馈修正
+#     招商局/华润创投 = 央企 CVC：产业协同 + 硬科技 + 极早期
+#     真格（徐小平） = 投人：投"能让人激动的人"
+# 与 score_landing_level 的分工：落地层量"现在在哪一级（存量）"，本层量
+# "团队能不能到下一级（增量）"。两者不互相取代：早期项目最终判定 =
+# 潜力层（人）+ 落地层（事）。
+
+
+def score_early_stage(evidence: dict) -> dict:
+    """早期潜力证据闸门（团队与创始人，管"值不值得赌"）。evidence 字段（8 项
+    True/False/缺省视为未提供）：
+    elite_research_verified（精英研究资质：核心成员 PhD/顶级学校 或 顶会顶刊论文）、
+    top_lab_origin_verified（顶级 AI 实验室出身：OpenAI/DeepMind/Anthropic/Meta FAIR/
+    上海AI Lab/智源等）、
+    bigtech_builder_verified（大厂规模构建：曾主导大厂规模化产品/系统）、
+    founder_spirit_verified（创业者精神：使命感/长期主义/正能量，而非只为赚钱）、
+    killer_app_verified（独门武功：杀手锏级差异化，沈南鹏"反木桶理论"）、
+    industry_validation_verified（产业验证：产业资本直投 或 真实交付，央企 CVC 视角）、
+    team_bond_verified（团队关系深度：co-founder 相识≥5年 或 同机构孵化）、
+    adaptability_verified（修正力：有 pivot/按市场反馈迭代的证据）、
+    exit_path_visibility_verified（退出路径可期性：有明确产业并购方/成熟退出通道/
+    产业方股东，央企 CVC "以退定投"视角——加权项，不进红线，因天使期退出太远不可硬判）、
+    backer_quality_verified（机构背书质量：有明确领投方 且 无"每月翻倍"式异常估值跳升，
+    识别"美元 FOMO + 人民币跟投"式背书虚高——加权项，不进红线）；
+    另有 team_before_landing（先团队后落地的判断顺序）、
+    team_source_verified（团队背景第三方核验 vs 自报）、
+    early_gap_externally_verifiable（缺口能否外部核查，决定 AUTO_REPAIR）。
+    红线 = 团队稀缺性：精英研究 ∪ 大厂构建 ∪ 独门武功，三者至少其一——这是
+    "值不值得赌"的前提本身。"""
+    early_dims = [
+        bool(evidence.get("elite_research_verified")),
+        bool(evidence.get("top_lab_origin_verified")),
+        bool(evidence.get("bigtech_builder_verified")),
+        bool(evidence.get("founder_spirit_verified")),
+        bool(evidence.get("killer_app_verified")),
+        bool(evidence.get("industry_validation_verified")),
+        bool(evidence.get("team_bond_verified")),
+        bool(evidence.get("adaptability_verified")),
+        bool(evidence.get("exit_path_visibility_verified")),
+        bool(evidence.get("backer_quality_verified")),
+    ]
+    covered = sum(early_dims)
+    C = covered / len(early_dims)  # Coverage：10 项团队潜力证据的覆盖度（含退出路径/背书质量加权项）
+
+    # Relevance 红线：团队稀缺性（精英研究 ∪ 大厂构建 ∪ 独门武功）
+    scarcity_ok = (
+        bool(evidence.get("elite_research_verified"))
+        or bool(evidence.get("bigtech_builder_verified"))
+        or bool(evidence.get("killer_app_verified"))
+    )
+    R = 1.0 if scarcity_ok else 0.2
+
+    O = 1.0 if evidence.get("team_before_landing") else 0.4
+    Ro = 1.0 if evidence.get("team_source_verified") else 0.3
+
+    verifiable_ext = bool(evidence.get("early_gap_externally_verifiable", True))
+
+    names = ["研究资质", "实验室", "大厂构建", "精神", "独门武功", "产业验证", "团队关系", "修正力", "退出路径", "背书质量"]
+    detail = "/".join(
+        ("✓" if early_dims[i] else "缺") + names[i] for i in range(len(names))
+    )
+    notes = (
+        f"团队潜力覆盖 {covered}/10（{detail}）；"
+        f"红线（精英研究/大厂构建/独门武功至少其一）{'通过' if scarcity_ok else '未通过'}；"
+        f"团队背景{'第三方核验' if evidence.get('team_source_verified') else '自报'}；"
+        f"顺序{'先团队后落地' if evidence.get('team_before_landing') else '未确认先团队'}"
+    )
+    return dict(R=R, C=C, O=O, Ro=Ro, verifiable_ext=verifiable_ext, notes=notes)
+
+
+def repair_early_stage(evidence: dict) -> dict:
+    """AUTO_REPAIR：团队背景可外部核查——模拟"去公开学位/论文/融资/工商库补团队
+    核验"。只补可外部核查的字段（团队背景第三方核验、先团队后落地顺序），绝不修改
+    稀缺性判定或团队潜力结论——真稀缺性不能靠翻 bool 修复。"""
+    new_evidence = dict(evidence)
+    new_evidence["team_source_verified"] = True
+    new_evidence["team_before_landing"] = True
+    return new_evidence
+
+
 # 供 engine.py 动态查找函数名用
 REGISTRY = {
     "score_invest_governance": score_invest_governance,
@@ -1879,6 +2398,8 @@ REGISTRY = {
     "score_aidc_track_valuation": score_aidc_track_valuation,
     "score_mna_exit_likelihood": score_mna_exit_likelihood,
     "score_capital_attribution": score_capital_attribution,
+    "score_narrative_screen": score_narrative_screen,
+    "score_early_stage": score_early_stage,
 }
 
 REPAIR_REGISTRY = {
@@ -1889,4 +2410,6 @@ REPAIR_REGISTRY = {
     "score_aidc_track_valuation": repair_aidc_track_valuation,
     "score_mna_exit_likelihood": repair_mna_exit_likelihood,
     "score_capital_attribution": repair_capital_attribution,
+    "score_narrative_screen": repair_narrative_screen,
+    "score_early_stage": repair_early_stage,
 }

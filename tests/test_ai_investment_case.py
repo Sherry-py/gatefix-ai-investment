@@ -438,16 +438,21 @@ def test_price_model_tristate_and_qiongche_case():
     assert "△" in md  # 黄标记（正在造/待观察）
 
 
-def test_compliance_exposure_maps_14105_and_tariffs():
-    """行政令14105：半导体/量子/AI 受限；清洁能源/核电/电网 豁免；光伏/锂电 关税暴露."""
-    assert ai_pre.compliance_exposure("semiconductor")[0] == "受限"
-    assert ai_pre.compliance_exposure("quantum")[0] == "受限"
-    assert ai_pre.compliance_exposure("ai_software")[0] == "受限"
-    assert ai_pre.compliance_exposure("nuclear_smr")[0] == "豁免"
-    assert ai_pre.compliance_exposure("grid")[0] == "豁免"
+def test_compliance_exposure_maps_investability_and_tariffs():
+    """2026-09-28 修订：本基金为境内人民币基金、LP 全部境内，不适用行政令 14105。
+    半导体/量子/AI 软件的"不投"是投资理由（一级买不到/估值脱锚/期限不匹配），
+    不是法律禁止；清洁能源/核电/电网 可投；光伏/锂电/多晶硅 关税暴露。"""
+    assert ai_pre.compliance_exposure("semiconductor")[0] == "不投"
+    assert ai_pre.compliance_exposure("quantum")[0] == "不投"
+    assert ai_pre.compliance_exposure("ai_software")[0] == "不投"
+    assert ai_pre.compliance_exposure("nuclear_smr")[0] == "可投"
+    assert ai_pre.compliance_exposure("grid")[0] == "可投"
     assert ai_pre.compliance_exposure("solar_component")[0] == "关税暴露"
     assert ai_pre.compliance_exposure("lithium_battery")[0] == "关税暴露"
     assert ai_pre.compliance_exposure("unknown_field")[0] == "未知"
+    # 回归护栏：不得再出现"以 14105 为由的法律禁投"表述
+    for field in ("semiconductor", "quantum", "ai_software"):
+        assert "非法律禁止" in ai_pre.compliance_exposure(field)[1]
 
 
 def test_embodied_implied_multiple_and_ruler():

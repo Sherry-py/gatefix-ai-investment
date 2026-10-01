@@ -19,6 +19,16 @@ backer_profile / exit_probability）放在 preconditions/ai_investment.py，
 from .embodied_targets import EMBODIED_TARGETS, target_by_name, targets_by_archetype
 from .backer_graph import BACKER_GRAPH, backer_by_name, backers_of, backers_by_type
 from .policy_exit import POLICY_EXIT_ATTITUDE, EXIT_CHANNELS, exit_attitude_for
+from .narrative_rules import (
+    NARRATIVE_RED_FLAGS,
+    ARCHETYPES,
+    CAPITAL_ROLES,
+    ARCHETYPE_CAPITAL_TIER,
+    ARCHETYPE_LABELS,
+    CAPITAL_ROLE_LABELS,
+)
+from .policy_timeline import POLICY_TIMELINE, lookup_policy_year, lookup_policy
+from .company_timeline import COMPANY_TIMELINE, lookup_company_year, lookup_company
 
 __all__ = [
     "EMBODIED_TARGETS",
@@ -31,4 +41,16 @@ __all__ = [
     "POLICY_EXIT_ATTITUDE",
     "EXIT_CHANNELS",
     "exit_attitude_for",
+    "NARRATIVE_RED_FLAGS",
+    "ARCHETYPES",
+    "CAPITAL_ROLES",
+    "ARCHETYPE_CAPITAL_TIER",
+    "ARCHETYPE_LABELS",
+    "CAPITAL_ROLE_LABELS",
+    "POLICY_TIMELINE",
+    "lookup_policy_year",
+    "lookup_policy",
+    "COMPANY_TIMELINE",
+    "lookup_company_year",
+    "lookup_company",
 ]

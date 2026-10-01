@@ -77,6 +77,8 @@ MCP_TOOL_CATEGORIES = {
     "list_precondition_functions": "read",
     "gate_history_get": "read",
     "authorize": "write",
+    "narrative_screen": "read",
+    "policy_alignment": "read",
 }
 
 
@@ -207,6 +209,45 @@ def gate_history_get(case: Optional[str] = None, gate_state: Optional[str] = Non
     if case is not None:
         records = [r for r in records if r.get("case") == case]
     return records
+
+
+@mcp.tool()
+def narrative_screen(case: str = "ai_investment", evidence: dict = None,
+                     target_name: str = None) -> dict:
+    """只读工具：Layer 0 叙事筛选三态判定（v3，含业务线拆分 + 政策-业务关联）。
+
+    确定性、LLM-free，不写审计记录、不产生副作用。返回：
+      verdict ∈ PASS(真价值) / CHAIN_PREMIUM(包装A·有产业接盘) /
+      NARRATIVE_RED_FLAG(包装B·排除) / MIXED(部分真·需拆线分投)
+      business_lines / true_lines / narrative_lines（业务线拆分结果）
+      policy（政策-业务关联：architect真利用 / wrapper伪响应 / irrelevant无关 / indeterminate待核实）
+      has_next_buyer / has_soe_backer（下一棒：产业方=溢价接盘，国资=政策接盘，确定性查机构图谱）
+    evidence 期望字段（由 llm_narrative_map 提取）：stripped_business_viable /
+    final_buyer_external / business_lines / policy_name / policy_usage_mode /
+    business_layout_time / policy_issue_time / has_chain_architecture 等。
+    target_name 用于查机构图谱（backer_profile）与公司布局年份（company_timeline），可选。"""
+    module = importlib.import_module(f"preconditions.{case}")
+    fn = getattr(module, "narrative_screen", None)
+    if fn is None:
+        raise ValueError(f"narrative_screen not found in preconditions.{case}")
+    return fn(evidence or {}, target_name)
+
+
+@mcp.tool()
+def policy_alignment(evidence: dict = None, target_name: str = None) -> dict:
+    """只读工具：政策-业务关联判定（确定性，LLM-free）。
+
+    判断公司是"利用政策做产业链架构"（architect，政策是水）还是"直接响应政策
+    做表面包装"（wrapper，政策是标签）。时间线（业务布局 vs 政策发布）两条都
+    确定性查表：政策年份查 policy_timeline，公司布局年份查 company_timeline。
+    不写审计记录、不产生副作用。
+    evidence 期望字段：policy_name / policy_usage_mode / business_layout_time /
+    policy_issue_time / has_chain_architecture。target_name 用于查公司布局年份。"""
+    module = importlib.import_module("preconditions.ai_investment")
+    fn = getattr(module, "policy_alignment", None)
+    if fn is None:
+        raise ValueError("policy_alignment not found in preconditions.ai_investment")
+    return fn(evidence or {}, target_name)
 
 
 if __name__ == "__main__":

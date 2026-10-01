@@ -7,3 +7,10 @@ notes.jsonl
 
 # 本地网页智能体：含基金 logo 绝对路径 / ~/.dsh 凭据路径 / 内部策略偏好，不提交到 public 仓库
 web_app.py
+
+# fontconfig 运行时缓存（web_app 生成 PDF 时写入）
+.cache/
+
+# 本地备份文件
+*.bak_*
+*.bak
