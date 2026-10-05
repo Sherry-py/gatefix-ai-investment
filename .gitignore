@@ -14,3 +14,6 @@ web_app.py
 # 本地备份文件
 *.bak_*
 *.bak
+
+# 配对日志（研究数据）：含项目名与内部研判，不提交
+paired_log.jsonl
